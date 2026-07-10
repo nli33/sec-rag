@@ -6,14 +6,18 @@ Raw extraction results are cached to disk per (ticker, accession) to avoid
 re-hitting SEC EDGAR on repeated runs.
 """
 import json
-import math
 import os
 from dataclasses import asdict, dataclass
 from typing import Optional
 
+import pandas as pd
 from edgar import Company, set_identity
 
 from secrag.config import RAW_DIR, SEC_IDENTITY
+
+# Bump when the extraction logic changes shape, so stale on-disk caches from
+# an older version of this module are rebuilt instead of silently reused.
+CACHE_VERSION = 1
 
 # Logical concept -> ordered list of XBRL tags to try (concept drift: companies
 # tag the same fact differently, e.g. post-ASC-606 filers use
@@ -86,10 +90,8 @@ def get_latest_filing(ticker: str, form: str = "10-K"):
 
 
 def _clean(value):
-    """pandas leaves missing cells as NaN, which is truthy in Python (`nan or x` -> nan)."""
-    if value is None or (isinstance(value, float) and math.isnan(value)):
-        return None
-    return value
+    """pandas leaves missing cells as NaN/NaT, which are truthy in Python (`nan or x` -> nan)."""
+    return None if pd.isna(value) else value
 
 
 def _base_provenance(ticker: str, filing) -> dict:
@@ -102,15 +104,31 @@ def _base_provenance(ticker: str, filing) -> dict:
     )
 
 
+def _read_cache(cache_file: str) -> Optional[list]:
+    """Return cached records, or None if no cache exists or it's from an older logic version."""
+    if not os.path.exists(cache_file):
+        return None
+    with open(cache_file) as f:
+        payload = json.load(f)
+    if payload.get("version") != CACHE_VERSION:
+        return None
+    return payload["items"]
+
+
+def _write_cache(cache_file: str, items: list) -> None:
+    with open(cache_file, "w") as f:
+        json.dump({"version": CACHE_VERSION, "items": items}, f)
+
+
 def extract_sections(ticker: str, filing) -> list[TextSection]:
     """Extract per-Item narrative text, tagged with provenance. Cached to disk."""
     cache_file = _cache_path(ticker, filing.accession_no, "sections.json")
-    if os.path.exists(cache_file):
-        with open(cache_file) as f:
-            cached = json.load(f)
+    cached = _read_cache(cache_file)
+    if cached is not None:
         return [TextSection(Provenance(**c["provenance"]), c["text"]) for c in cached]
 
     base = _base_provenance(ticker, filing)
+    fiscal_period = str(filing.period_of_report) if filing.period_of_report else None
     obj = filing.obj()
     sections = []
     for section in obj.sections.values():
@@ -119,21 +137,18 @@ def extract_sections(ticker: str, filing) -> list[TextSection]:
         text = section.text()
         if not text or not text.strip():
             continue
-        sections.append(TextSection(Provenance(**base, item=section.item), text.strip()))
+        prov = Provenance(**base, item=section.item, fiscal_period=fiscal_period)
+        sections.append(TextSection(prov, text.strip()))
 
-    with open(cache_file, "w") as f:
-        json.dump(
-            [{"provenance": asdict(s.provenance), "text": s.text} for s in sections], f
-        )
+    _write_cache(cache_file, [{"provenance": asdict(s.provenance), "text": s.text} for s in sections])
     return sections
 
 
 def extract_facts(ticker: str, filing) -> list[Fact]:
     """Extract core XBRL facts for this filing, tagged with provenance. Cached to disk."""
     cache_file = _cache_path(ticker, filing.accession_no, "facts.json")
-    if os.path.exists(cache_file):
-        with open(cache_file) as f:
-            cached = json.load(f)
+    cached = _read_cache(cache_file)
+    if cached is not None:
         return [
             Fact(Provenance(**c["provenance"]), c["value"], c["unit"], c["period_start"], c["period_end"])
             for c in cached
@@ -145,10 +160,7 @@ def extract_facts(ticker: str, filing) -> list[Fact]:
     for candidates in CONCEPT_GROUPS.values():
         for tag in candidates:
             qualified = f"us-gaap:{tag}"
-            try:
-                df = facts_view.query().by_concept(qualified).to_dataframe()
-            except Exception:
-                continue
+            df = facts_view.query().by_concept(qualified).to_dataframe()
             if df is None or df.empty:
                 continue
             # by_concept does partial matching and includes dimensioned (segment/member)
@@ -176,20 +188,19 @@ def extract_facts(ticker: str, filing) -> list[Fact]:
                 )
             break  # found data for this logical concept; skip remaining fallback tags
 
-    with open(cache_file, "w") as f:
-        json.dump(
-            [
-                {
-                    "provenance": asdict(fct.provenance),
-                    "value": fct.value,
-                    "unit": fct.unit,
-                    "period_start": fct.period_start,
-                    "period_end": fct.period_end,
-                }
-                for fct in results
-            ],
-            f,
-        )
+    _write_cache(
+        cache_file,
+        [
+            {
+                "provenance": asdict(fct.provenance),
+                "value": fct.value,
+                "unit": fct.unit,
+                "period_start": fct.period_start,
+                "period_end": fct.period_end,
+            }
+            for fct in results
+        ],
+    )
     return results
 
 

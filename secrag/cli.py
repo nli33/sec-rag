@@ -26,19 +26,10 @@ def ingest(ticker: str, form: str = "10-K"):
 
     sections, facts = run_ingest(ticker, form)
 
-    missing_prov = [s for s in sections if not s.provenance.item] + [
-        f for f in facts if not f.provenance.concept
-    ]
-    if missing_prov:
-        typer.echo(f"WARNING: {len(missing_prov)} items missing provenance", err=True)
-
     typer.echo(f"{ticker.upper()} {form}: {len(sections)} sections, {len(facts)} facts")
     for fct in facts:
         period = fct.period_end or "?"
-        typer.echo(
-            f"  {fct.provenance.concept:12s} {fct.value:>18,.0f} {fct.unit} "
-            f"(period_end={period}, item provenance ok)"
-        )
+        typer.echo(f"  {fct.provenance.concept:12s} {fct.value:>18,.0f} {fct.unit} (period_end={period})")
 
 
 @app.command()

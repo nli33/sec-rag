@@ -73,3 +73,8 @@ e.g. full FinanceBench-corpus eval, or anything that risks exhausting 8GB RAM
 or running long on CPU), flag it to the user before running and check whether
 it should move to a compute node instead. Never run duplicate/concurrent
 heavy jobs — sequential only.
+
+## Git workflow
+
+Commit directly to `master`. Do not create a new branch unless the user
+specifically asks for one.

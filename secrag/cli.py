@@ -33,9 +33,14 @@ def ingest(ticker: str, form: str = "10-K"):
 
 
 @app.command()
-def ask(question: str):
-    """Ask a question over the indexed filings. [M2]"""
-    raise NotImplementedError("Implemented in M2")
+def ask(question: str, ticker: str = None):
+    """Ask a question over the indexed filings."""
+    from secrag.generate import generate
+    from secrag.retrieve import retrieve
+
+    chunks = retrieve(question, ticker=ticker)
+    answer = generate(question, chunks)
+    typer.echo(answer)
 
 
 @app.command("eval")

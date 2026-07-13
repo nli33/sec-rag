@@ -17,6 +17,11 @@ DENSE_MODEL_NAME = "BAAI/bge-large-en-v1.5"
 SPARSE_MODEL_NAME = "Qdrant/bm25"
 DENSE_DIM = 1024
 
+# Caps ONNX runtime intra-op threads and batch size so embedding jobs don't spike
+# CPU/memory and lag the rest of the machine (see incident in HANDOFF.md).
+EMBED_THREADS = 2
+EMBED_BATCH_SIZE = 32
+
 _dense_model = None
 _sparse_model = None
 
@@ -24,14 +29,14 @@ _sparse_model = None
 def get_dense_model() -> TextEmbedding:
     global _dense_model
     if _dense_model is None:
-        _dense_model = TextEmbedding(model_name=DENSE_MODEL_NAME)
+        _dense_model = TextEmbedding(model_name=DENSE_MODEL_NAME, threads=EMBED_THREADS)
     return _dense_model
 
 
 def get_sparse_model() -> SparseTextEmbedding:
     global _sparse_model
     if _sparse_model is None:
-        _sparse_model = SparseTextEmbedding(model_name=SPARSE_MODEL_NAME)
+        _sparse_model = SparseTextEmbedding(model_name=SPARSE_MODEL_NAME, threads=EMBED_THREADS)
     return _sparse_model
 
 
@@ -63,8 +68,8 @@ def index_chunks(chunks: list[Chunk]) -> int:
     ensure_collection(client)
 
     texts = [c.text for c in chunks]
-    dense_vecs = list(get_dense_model().embed(texts))
-    sparse_vecs = list(get_sparse_model().embed(texts))
+    dense_vecs = list(get_dense_model().embed(texts, batch_size=EMBED_BATCH_SIZE))
+    sparse_vecs = list(get_sparse_model().embed(texts, batch_size=EMBED_BATCH_SIZE))
 
     points = []
     for chunk, dense_vec, sparse_vec in zip(chunks, dense_vecs, sparse_vecs):

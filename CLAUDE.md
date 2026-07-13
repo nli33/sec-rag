@@ -61,3 +61,15 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Primary dev machine
+
+Apple M1, 8GB unified RAM. Most of this project (Qdrant via Docker, chunk
+embedding at hundreds-of-chunks scale, reranking) runs fine here — the M1
+should be the default environment.
+
+If a task looks high-performance (large-scale embedding/indexing/reranking,
+e.g. full FinanceBench-corpus eval, or anything that risks exhausting 8GB RAM
+or running long on CPU), flag it to the user before running and check whether
+it should move to a compute node instead. Never run duplicate/concurrent
+heavy jobs — sequential only.

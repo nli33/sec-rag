@@ -44,11 +44,11 @@ def get_client() -> QdrantClient:
     return QdrantClient(url=QDRANT_URL)
 
 
-def ensure_collection(client: QdrantClient) -> None:
-    if client.collection_exists(COLLECTION_NAME):
+def ensure_collection(client: QdrantClient, collection_name: str = COLLECTION_NAME) -> None:
+    if client.collection_exists(collection_name):
         return
     client.create_collection(
-        collection_name=COLLECTION_NAME,
+        collection_name=collection_name,
         vectors_config={"dense": models.VectorParams(size=DENSE_DIM, distance=models.Distance.COSINE)},
         sparse_vectors_config={"sparse": models.SparseVectorParams()},
     )
@@ -59,13 +59,13 @@ def _point_id(chunk: Chunk) -> str:
     return hashlib.md5(key.encode()).hexdigest()
 
 
-def index_chunks(chunks: list[Chunk]) -> int:
+def index_chunks(chunks: list[Chunk], collection_name: str = COLLECTION_NAME) -> int:
     """Embed and upsert chunks into Qdrant. Returns the number of points written."""
     if not chunks:
         return 0
 
     client = get_client()
-    ensure_collection(client)
+    ensure_collection(client, collection_name=collection_name)
 
     texts = [c.text for c in chunks]
     dense_vecs = list(get_dense_model().embed(texts, batch_size=EMBED_BATCH_SIZE))
@@ -87,5 +87,5 @@ def index_chunks(chunks: list[Chunk]) -> int:
             )
         )
 
-    client.upsert(collection_name=COLLECTION_NAME, points=points)
+    client.upsert(collection_name=collection_name, points=points)
     return len(points)

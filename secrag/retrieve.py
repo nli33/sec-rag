@@ -29,7 +29,10 @@ class RetrievedChunk:
 
 
 def hybrid_search(
-    query: str, ticker: Optional[str] = None, prefetch_limit: int = PREFETCH_LIMIT
+    query: str,
+    ticker: Optional[str] = None,
+    prefetch_limit: int = PREFETCH_LIMIT,
+    collection_name: str = COLLECTION_NAME,
 ) -> list[dict]:
     """Dense+sparse hybrid retrieval via Qdrant native RRF fusion. Returns raw payloads."""
     client = get_client()
@@ -43,7 +46,7 @@ def hybrid_search(
         )
 
     result = client.query_points(
-        collection_name=COLLECTION_NAME,
+        collection_name=collection_name,
         prefetch=[
             models.Prefetch(
                 query=dense_vec.tolist(), using="dense", limit=prefetch_limit, filter=query_filter
@@ -74,6 +77,11 @@ def rerank(query: str, payloads: list[dict], top_k: int = RERANK_TOP_K) -> list[
     ]
 
 
-def retrieve(query: str, ticker: Optional[str] = None, top_k: int = RERANK_TOP_K) -> list[RetrievedChunk]:
-    candidates = hybrid_search(query, ticker=ticker)
+def retrieve(
+    query: str,
+    ticker: Optional[str] = None,
+    top_k: int = RERANK_TOP_K,
+    collection_name: str = COLLECTION_NAME,
+) -> list[RetrievedChunk]:
+    candidates = hybrid_search(query, ticker=ticker, collection_name=collection_name)
     return rerank(query, candidates, top_k=top_k)

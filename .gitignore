@@ -6,4 +6,5 @@ __pycache__/
 venv/
 .cache/
 data/raw/
+data/eval/
 *.egg-info/

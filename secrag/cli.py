@@ -44,9 +44,13 @@ def ask(question: str, ticker: str = None):
 
 
 @app.command("eval")
-def run_eval(dataset: str = "financebench"):
-    """Run the evaluation harness against a benchmark. [M3]"""
-    raise NotImplementedError("Implemented in M3")
+def run_eval(dataset: str = "financebench", limit: int = None):
+    """Run the evaluation harness against a benchmark."""
+    from secrag.eval.run import main as eval_main
+
+    if dataset != "financebench":
+        raise typer.BadParameter("only 'financebench' is supported")
+    eval_main(limit=limit)
 
 
 if __name__ == "__main__":

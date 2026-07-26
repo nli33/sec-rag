@@ -6,6 +6,7 @@ Anthropic API/SDK (avoids per-call API billing). See HANDOFF.md §3.
 import json
 import subprocess
 
+from secrag.config import MODEL
 from secrag.retrieve import RetrievedChunk
 
 SYSTEM_PROMPT = """You answer questions about SEC filings using only the excerpts provided below.
@@ -38,7 +39,7 @@ def generate(question: str, chunks: list[RetrievedChunk]) -> str:
             "--system-prompt", SYSTEM_PROMPT,
             "--tools", "",
             "--disable-slash-commands",
-            "--model", "sonnet",
+            "--model", MODEL,
             "--output-format", "json",
         ],
         capture_output=True,

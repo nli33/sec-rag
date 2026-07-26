@@ -8,6 +8,7 @@ load_dotenv()
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 SEC_IDENTITY = os.environ.get("SEC_IDENTITY", "")
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
+MODEL = "sonnet"
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 RAW_DIR = os.path.join(DATA_DIR, "raw")

@@ -4,6 +4,7 @@ import re
 import subprocess
 from typing import Optional
 
+from secrag.config import MODEL
 from secrag.retrieve import RetrievedChunk
 
 _SCALE_WORDS = {
@@ -90,7 +91,7 @@ def llm_judge(question: str, gold: str, predicted: str) -> bool:
             "--system-prompt", JUDGE_SYSTEM_PROMPT,
             "--tools", "",
             "--disable-slash-commands",
-            "--model", "sonnet",
+            "--model", MODEL,
             "--output-format", "json",
         ],
         capture_output=True,

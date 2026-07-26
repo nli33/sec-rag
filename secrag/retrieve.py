@@ -1,4 +1,5 @@
 """M2: hybrid (dense + sparse, RRF-fused) retrieval, then cross-encoder rerank."""
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,8 +9,11 @@ from qdrant_client import models
 from secrag.index import COLLECTION_NAME, get_dense_model, get_sparse_model, get_client
 
 RERANK_MODEL_NAME = "BAAI/bge-reranker-base"
-PREFETCH_LIMIT = 50
+PREFETCH_LIMIT = 20
 RERANK_TOP_K = 8
+# Unlike secrag.index.EMBED_THREADS (capped low for long-running ingest jobs), reranking is
+# a short per-query burst, so use all available cores rather than throttling it.
+RERANK_THREADS = os.cpu_count() or 1
 
 _rerank_model = None
 
@@ -17,7 +21,7 @@ _rerank_model = None
 def _get_rerank_model() -> TextCrossEncoder:
     global _rerank_model
     if _rerank_model is None:
-        _rerank_model = TextCrossEncoder(model_name=RERANK_MODEL_NAME)
+        _rerank_model = TextCrossEncoder(model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS)
     return _rerank_model
 
 

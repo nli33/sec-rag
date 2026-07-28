@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "onnx>=1.14.0",
 ]
 
 [project.scripts]

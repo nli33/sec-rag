@@ -6,6 +6,7 @@ from typing import Optional
 from fastembed.rerank.cross_encoder import TextCrossEncoder
 from qdrant_client import models
 
+from secrag.config import INT8_RERANKER_PATH, USE_INT8_RERANKER
 from secrag.index import COLLECTION_NAME, get_dense_model, get_sparse_model, get_client
 
 RERANK_MODEL_NAME = "BAAI/bge-reranker-base"
@@ -21,7 +22,17 @@ _rerank_model = None
 def _get_rerank_model() -> TextCrossEncoder:
     global _rerank_model
     if _rerank_model is None:
-        _rerank_model = TextCrossEncoder(model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS)
+        if USE_INT8_RERANKER:
+            if not os.path.isdir(INT8_RERANKER_PATH):
+                raise FileNotFoundError(
+                    f"USE_INT8_RERANKER is set but {INT8_RERANKER_PATH} doesn't exist — "
+                    "run `python scripts/quantize_reranker.py` first"
+                )
+            _rerank_model = TextCrossEncoder(
+                model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS, specific_model_path=INT8_RERANKER_PATH
+            )
+        else:
+            _rerank_model = TextCrossEncoder(model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS)
     return _rerank_model
 
 

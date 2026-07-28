@@ -53,5 +53,15 @@ def run_eval(dataset: str = "financebench", limit: int = None):
     eval_main(limit=limit)
 
 
+@app.command("eval-baseline")
+def run_baseline_eval(mode: str = "web", dataset: str = "financebench", limit: int = None):
+    """Run a no-RAG baseline (mode: "naive" or "web") against a benchmark, for comparison."""
+    from secrag.eval.baseline_run import main as baseline_main
+
+    if dataset != "financebench":
+        raise typer.BadParameter("only 'financebench' is supported")
+    baseline_main(mode=mode, limit=limit)
+
+
 if __name__ == "__main__":
     app()

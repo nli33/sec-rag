@@ -30,28 +30,35 @@ class CallMetrics:
 _recorded: list[CallMetrics] = []
 
 
-def call_claude(prompt: str, system_prompt: str, model: str) -> str:
+def call_claude(
+    prompt: str, system_prompt: str, model: str, tools: str = "", permission_mode: str = None
+) -> str:
     """Run one `claude -p` call and return its raw "result" string.
+
+    `tools` is passed straight to `--tools` (default "" — no tools, matching every
+    existing caller's behavior). Pass e.g. "WebSearch" to allow a specific built-in tool
+    (see secrag/baseline.py's web-search baseline). `-p` (headless) mode otherwise prompts
+    for tool-use permission and silently no-ops the tool call, so a non-empty `tools`
+    generally needs `permission_mode="bypassPermissions"` alongside a narrow `tools`
+    allowlist to actually run rather than just claim it couldn't.
 
     Raises subprocess.CalledProcessError / json.JSONDecodeError / KeyError on CLI or
     payload-shape failures — callers keep their own error handling for those exactly as
     before this was centralized (each caller's payload beyond "result" has different shape
     requirements, so payload-specific parsing/validation stays with the caller).
     """
-    result = subprocess.run(
-        [
-            "claude",
-            "-p", prompt,
-            "--system-prompt", system_prompt,
-            "--tools", "",
-            "--disable-slash-commands",
-            "--model", model,
-            "--output-format", "json",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    args = [
+        "claude",
+        "-p", prompt,
+        "--system-prompt", system_prompt,
+        "--tools", tools,
+        "--disable-slash-commands",
+        "--model", model,
+        "--output-format", "json",
+    ]
+    if permission_mode:
+        args.extend(["--permission-mode", permission_mode])
+    result = subprocess.run(args, capture_output=True, text=True, check=True)
     payload = json.loads(result.stdout)
     usage = payload.get("usage", {})
     _recorded.append(

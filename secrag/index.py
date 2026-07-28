@@ -4,19 +4,25 @@ Uses the same bge-large-en-v1.5 (dense) + Qdrant/bm25 (sparse) pair validated
 in M0's smoke test, so retrieval-time embeddings match index-time embeddings.
 """
 import hashlib
+import os
 from dataclasses import asdict
 
 from fastembed import SparseTextEmbedding, TextEmbedding
 from qdrant_client import QdrantClient, models
 
 from secrag.chunk import Chunk
-from secrag.config import QDRANT_URL, REMOTE_EMBED_HOST
+from secrag.config import DATA_DIR, QDRANT_URL, REMOTE_EMBED_HOST
 from secrag.remote_embed import embed_dense_remote
 
 COLLECTION_NAME = "secrag_chunks"
 DENSE_MODEL_NAME = "BAAI/bge-large-en-v1.5"
 SPARSE_MODEL_NAME = "Qdrant/bm25"
 DENSE_DIM = 1024
+# Explicit, persistent cache dir — fastembed's default lives under the OS tmpdir, which is
+# ephemeral per-shell here. A model download that gets interrupted mid-way (e.g. a transient
+# GCS/HF hiccup) can leave a broken cache entry that fastembed then treats as "already present"
+# forever, silently breaking every embed call without ever retrying the download.
+FASTEMBED_CACHE_DIR = os.path.join(DATA_DIR, "models", "fastembed_cache")
 
 # Caps ONNX runtime intra-op threads and batch size so embedding jobs don't spike
 # CPU/memory and lag the rest of the machine (see incident in HANDOFF.md).
@@ -30,14 +36,18 @@ _sparse_model = None
 def get_dense_model() -> TextEmbedding:
     global _dense_model
     if _dense_model is None:
-        _dense_model = TextEmbedding(model_name=DENSE_MODEL_NAME, threads=EMBED_THREADS)
+        _dense_model = TextEmbedding(
+            model_name=DENSE_MODEL_NAME, threads=EMBED_THREADS, cache_dir=FASTEMBED_CACHE_DIR
+        )
     return _dense_model
 
 
 def get_sparse_model() -> SparseTextEmbedding:
     global _sparse_model
     if _sparse_model is None:
-        _sparse_model = SparseTextEmbedding(model_name=SPARSE_MODEL_NAME, threads=EMBED_THREADS)
+        _sparse_model = SparseTextEmbedding(
+            model_name=SPARSE_MODEL_NAME, threads=EMBED_THREADS, cache_dir=FASTEMBED_CACHE_DIR
+        )
     return _sparse_model
 
 

@@ -1,4 +1,4 @@
-"""Offload dense chunk embedding to a GPU cluster node over SSH/SCP at ingest time.
+"""Offload dense chunk embedding to a GPU cluster node at ingest time.
 
 Local CPU dense embedding (bge-large-en-v1.5, EMBED_THREADS-capped) runs at ~2.4s/chunk
 on the primary dev machine (see PERFORMANCE.md) — a multi-document ingest can take well
@@ -9,6 +9,12 @@ embedding stays local always — it's ~4ms/chunk, already fast, and gains nothin
 Query-time embedding always stays local (see secrag/retrieve.py) — this module is only
 used for the one-off/batch ingest path, not the interactive query path.
 
+File staging (scp in/out) is handled directly here since it's SSH-specific; how the actual
+embedding job runs and is waited on is delegated to a ComputeBackend (see
+secrag/compute_backend.py) — currently SlurmBackend, submitting via sbatch rather than a
+manually-reserved interactive session, so job state is trackable via squeue instead of
+tied to one hand-reserved node's lifetime.
+
 Enable by setting REMOTE_EMBED_HOST in config (empty/unset disables this entirely and
 callers should fall back to local embedding).
 """
@@ -18,6 +24,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from secrag.compute_backend import ComputeBackendError, SlurmBackend
 from secrag.config import REMOTE_EMBED_HOST, REMOTE_EMBED_SCRATCH_DIR
 
 _REMOTE_SCRATCH_DIR = REMOTE_EMBED_SCRATCH_DIR
@@ -30,13 +37,14 @@ class RemoteEmbedError(Exception):
 
 
 def embed_dense_remote(texts: list[str], host: str = REMOTE_EMBED_HOST) -> list[list[float]]:
-    """Dense-embed `texts` on `host`'s GPU via SSH/SCP. Raises RemoteEmbedError on any failure."""
+    """Dense-embed `texts` on `host`'s GPU via a SLURM job. Raises RemoteEmbedError on any failure."""
     if not host:
         raise RemoteEmbedError("no remote embed host configured (set REMOTE_EMBED_HOST)")
 
     job_id = uuid.uuid4().hex
     remote_in = f"{_REMOTE_SCRATCH_DIR}/embed_in_{job_id}.json"
     remote_out = f"{_REMOTE_SCRATCH_DIR}/embed_out_{job_id}.json"
+    backend = SlurmBackend(host=host, scratch_dir=_REMOTE_SCRATCH_DIR)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         local_in = Path(tmpdir) / "in.json"
@@ -48,19 +56,16 @@ def embed_dense_remote(texts: list[str], host: str = REMOTE_EMBED_HOST) -> list[
                 ["scp", "-o", "ConnectTimeout=15", str(local_in), f"{host}:{remote_in}"],
                 check=True, capture_output=True, text=True,
             )
-            subprocess.run(
-                [
-                    "ssh", "-o", "ConnectTimeout=15", host,
-                    f"source {_REMOTE_VENV_ACTIVATE} && python3 {_REMOTE_WORKER_SCRIPT} {remote_in} {remote_out}",
-                ],
-                check=True, capture_output=True, text=True,
+            backend.run(
+                command=f"source {_REMOTE_VENV_ACTIVATE} && python3 {_REMOTE_WORKER_SCRIPT} {remote_in} {remote_out}",
+                job_name="secrag_embed",
             )
             subprocess.run(
                 ["scp", "-o", "ConnectTimeout=15", f"{host}:{remote_out}", str(local_out)],
                 check=True, capture_output=True, text=True,
             )
-        except subprocess.CalledProcessError as e:
-            raise RemoteEmbedError(f"remote embedding failed: {e.stderr}") from e
+        except (subprocess.CalledProcessError, ComputeBackendError) as e:
+            raise RemoteEmbedError(f"remote embedding failed: {e}") from e
         finally:
             subprocess.run(
                 ["ssh", "-o", "ConnectTimeout=15", host, f"rm -f {remote_in} {remote_out}"],

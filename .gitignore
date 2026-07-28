@@ -7,4 +7,6 @@ venv/
 .cache/
 data/raw/
 data/eval/
+data/models/
 *.egg-info/
+notes/

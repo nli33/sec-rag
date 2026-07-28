@@ -17,3 +17,7 @@ RAW_DIR = os.path.join(DATA_DIR, "raw")
 # see notes/retrieval-performance.md. Off by default: not yet validated on the full eval set.
 USE_INT8_RERANKER = os.environ.get("USE_INT8_RERANKER", "").lower() in ("1", "true", "yes")
 INT8_RERANKER_PATH = os.path.join(DATA_DIR, "models", "bge-reranker-base-int8")
+# Decompose a question into focused sub-queries before retrieval (see secrag/decompose.py)
+# — targets questions needing two+ facts from different filing pages. Off by default: adds
+# a Claude CLI round-trip per query, and not yet validated on the full eval set.
+USE_QUERY_DECOMPOSITION = os.environ.get("USE_QUERY_DECOMPOSITION", "").lower() in ("1", "true", "yes")

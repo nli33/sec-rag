@@ -6,12 +6,17 @@ from typing import Optional
 from fastembed.rerank.cross_encoder import TextCrossEncoder
 from qdrant_client import models
 
-from secrag.config import INT8_RERANKER_PATH, USE_INT8_RERANKER
+from secrag.config import INT8_RERANKER_PATH, USE_INT8_RERANKER, USE_QUERY_DECOMPOSITION
+from secrag.decompose import decompose
 from secrag.index import COLLECTION_NAME, get_dense_model, get_sparse_model, get_client
 
 RERANK_MODEL_NAME = "BAAI/bge-reranker-base"
 PREFETCH_LIMIT = 20
 RERANK_TOP_K = 12
+# Per-sub-query prefetch when query decomposition is on — kept smaller than PREFETCH_LIMIT
+# so a multi-sub-query merged candidate pool stays close to today's single-query size
+# rather than multiplying it (e.g. 3 sub-queries x 10 ~= 20-30, not 3x60).
+SUB_QUERY_PREFETCH_LIMIT = 10
 # Unlike secrag.index.EMBED_THREADS (capped low for long-running ingest jobs), reranking is
 # a short per-query burst, so use all available cores rather than throttling it.
 RERANK_THREADS = os.cpu_count() or 1
@@ -98,5 +103,23 @@ def retrieve(
     top_k: int = RERANK_TOP_K,
     collection_name: str = COLLECTION_NAME,
 ) -> list[RetrievedChunk]:
-    candidates = hybrid_search(query, ticker=ticker, collection_name=collection_name)
-    return rerank(query, candidates, top_k=top_k)
+    if not USE_QUERY_DECOMPOSITION:
+        candidates = hybrid_search(query, ticker=ticker, collection_name=collection_name)
+        return rerank(query, candidates, top_k=top_k)
+
+    sub_queries = decompose(query)
+    if len(sub_queries) == 1:
+        candidates = hybrid_search(sub_queries[0], ticker=ticker, collection_name=collection_name)
+        return rerank(query, candidates, top_k=top_k)
+
+    seen = set()
+    merged = []
+    for sub_query in sub_queries:
+        for payload in hybrid_search(
+            sub_query, ticker=ticker, collection_name=collection_name, prefetch_limit=SUB_QUERY_PREFETCH_LIMIT
+        ):
+            key = (payload.get("item"), payload.get("chunk_index"))
+            if key not in seen:
+                seen.add(key)
+                merged.append(payload)
+    return rerank(query, merged, top_k=top_k)

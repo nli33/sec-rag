@@ -21,6 +21,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 
+from secrag.claude_cli import call_claude
 from secrag.config import MODEL
 from secrag.generate import _build_context
 from secrag.retrieve import RetrievedChunk
@@ -178,24 +179,10 @@ def calculate(question: str, chunks: list[RetrievedChunk]) -> CalcResult:
     context = _build_context(chunks)
     prompt = f"Excerpts:\n\n{context}\n\nQuestion: {question}"
 
-    result = subprocess.run(
-        [
-            "claude",
-            "-p", prompt,
-            "--system-prompt", SYSTEM_PROMPT,
-            "--tools", "",
-            "--disable-slash-commands",
-            "--model", MODEL,
-            "--output-format", "json",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
     try:
-        raw = json.loads(result.stdout)["result"]
+        raw = call_claude(prompt, SYSTEM_PROMPT, MODEL)
     except (json.JSONDecodeError, KeyError) as e:
-        raise CalculatorError(f"unexpected claude CLI output: {result.stdout!r}") from e
+        raise CalculatorError(f"unexpected claude CLI output: {e}") from e
 
     parsed = _parse_payload(raw)
     code = parsed["code"]

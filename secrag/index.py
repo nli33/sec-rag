@@ -10,7 +10,8 @@ from fastembed import SparseTextEmbedding, TextEmbedding
 from qdrant_client import QdrantClient, models
 
 from secrag.chunk import Chunk
-from secrag.config import QDRANT_URL
+from secrag.config import QDRANT_URL, REMOTE_EMBED_HOST
+from secrag.remote_embed import embed_dense_remote
 
 COLLECTION_NAME = "secrag_chunks"
 DENSE_MODEL_NAME = "BAAI/bge-large-en-v1.5"
@@ -68,7 +69,10 @@ def index_chunks(chunks: list[Chunk], collection_name: str = COLLECTION_NAME) ->
     ensure_collection(client, collection_name=collection_name)
 
     texts = [c.text for c in chunks]
-    dense_vecs = list(get_dense_model().embed(texts, batch_size=EMBED_BATCH_SIZE))
+    if REMOTE_EMBED_HOST:
+        dense_vecs = embed_dense_remote(texts)
+    else:
+        dense_vecs = [v.tolist() for v in get_dense_model().embed(texts, batch_size=EMBED_BATCH_SIZE)]
     sparse_vecs = list(get_sparse_model().embed(texts, batch_size=EMBED_BATCH_SIZE))
 
     points = []
@@ -78,7 +82,7 @@ def index_chunks(chunks: list[Chunk], collection_name: str = COLLECTION_NAME) ->
             models.PointStruct(
                 id=_point_id(chunk),
                 vector={
-                    "dense": dense_vec.tolist(),
+                    "dense": dense_vec,
                     "sparse": models.SparseVector(
                         indices=sparse_vec.indices.tolist(), values=sparse_vec.values.tolist()
                     ),

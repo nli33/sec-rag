@@ -9,6 +9,10 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 SEC_IDENTITY = os.environ.get("SEC_IDENTITY", "")
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
 MODEL = "sonnet"
+# SSH host for offloading ingest-time dense embedding to a GPU cluster node (see
+# secrag/remote_embed.py). Empty/unset means always embed locally.
+REMOTE_EMBED_HOST = os.environ.get("REMOTE_EMBED_HOST", "")
+REMOTE_EMBED_SCRATCH_DIR = os.environ.get("REMOTE_EMBED_SCRATCH_DIR", "/u2/n262li")
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 RAW_DIR = os.path.join(DATA_DIR, "raw")

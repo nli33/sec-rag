@@ -10,7 +10,7 @@ from secrag.index import COLLECTION_NAME, get_dense_model, get_sparse_model, get
 
 RERANK_MODEL_NAME = "BAAI/bge-reranker-base"
 PREFETCH_LIMIT = 20
-RERANK_TOP_K = 8
+RERANK_TOP_K = 12
 # Unlike secrag.index.EMBED_THREADS (capped low for long-running ingest jobs), reranking is
 # a short per-query burst, so use all available cores rather than throttling it.
 RERANK_THREADS = os.cpu_count() or 1

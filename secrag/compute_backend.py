@@ -66,6 +66,14 @@ class SlurmBackend(ComputeBackend):
             f"#SBATCH --output={remote_log}\n"
             f"#SBATCH --time={self.time_limit}\n"
             f"#SBATCH --gres={self.gres}\n"
+            # Without this, sbatch can schedule the job onto a different node in the pool
+            # (confirmed: jobs landed on watgpu1109 instead of watgpu108) where the venv at
+            # `scratch_dir` silently fails to import anything — its python3 binary is a bare
+            # symlink to that node's own /usr/bin/python3, which has no knowledge of the
+            # venv's site-packages, so the job dies with a ModuleNotFoundError instead of an
+            # obviously environment-related error. Pinning to the submission host guarantees
+            # the venv actually exists where the job runs.
+            f"#SBATCH --nodelist={self.host}\n"
             f"{command}\n"
             f"echo $? > {remote_exit_file}\n"
         )

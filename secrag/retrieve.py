@@ -8,7 +8,7 @@ from qdrant_client import models
 
 from secrag.config import INT8_RERANKER_PATH, USE_INT8_RERANKER, USE_QUERY_DECOMPOSITION
 from secrag.decompose import decompose
-from secrag.index import COLLECTION_NAME, get_dense_model, get_sparse_model, get_client
+from secrag.index import FASTEMBED_CACHE_DIR, COLLECTION_NAME, get_dense_model, get_sparse_model, get_client
 
 RERANK_MODEL_NAME = "BAAI/bge-reranker-base"
 PREFETCH_LIMIT = 20
@@ -34,10 +34,13 @@ def _get_rerank_model() -> TextCrossEncoder:
                     "run `python scripts/quantize_reranker.py` first"
                 )
             _rerank_model = TextCrossEncoder(
-                model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS, specific_model_path=INT8_RERANKER_PATH
+                model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS,
+                specific_model_path=INT8_RERANKER_PATH, cache_dir=FASTEMBED_CACHE_DIR,
             )
         else:
-            _rerank_model = TextCrossEncoder(model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS)
+            _rerank_model = TextCrossEncoder(
+                model_name=RERANK_MODEL_NAME, threads=RERANK_THREADS, cache_dir=FASTEMBED_CACHE_DIR
+            )
     return _rerank_model
 
 

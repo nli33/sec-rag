@@ -27,7 +27,7 @@ def run_baseline_eval(questions: list[dict], mode: str = "web") -> list[dict]:
         reset_recorded_metrics()
         t0 = time.time()
         try:
-            answer = answer_fn(q["question"])
+            answer = answer_fn(q["question"], company=q["company"])
             correct, method = score_answer(q["question"], q["answer"], answer)
             results.append({
                 "financebench_id": q["financebench_id"],

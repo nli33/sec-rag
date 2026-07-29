@@ -37,12 +37,25 @@ Rules:
 """
 
 
-def answer_naive(question: str) -> str:
+def _build_prompt(question: str, company: str = None) -> str:
+    """Prefix `question` with the company name when given.
+
+    Some FinanceBench questions don't name the company in the question text itself (they
+    rely on the dataset's separate `company`/`doc_name` field) — the RAG pipeline never
+    hits this ambiguity since `retrieve()` is always scoped by `ticker`, so the baseline
+    needs the same context to be a fair comparison rather than failing on "which company?"
+    """
+    if not company:
+        return question
+    return f"Company: {company}\n\nQuestion: {question}"
+
+
+def answer_naive(question: str, company: str = None) -> str:
     """Answer `question` via the claude CLI with no tools and no retrieved context."""
-    return call_claude(question, NAIVE_SYSTEM_PROMPT, MODEL, tools="")
+    return call_claude(_build_prompt(question, company), NAIVE_SYSTEM_PROMPT, MODEL, tools="")
 
 
-def answer_web_search(question: str) -> str:
+def answer_web_search(question: str, company: str = None) -> str:
     """Answer `question` via the claude CLI with web search enabled, no retrieved context.
 
     Headless (-p) mode otherwise prompts for permission before a tool actually runs and
@@ -50,5 +63,6 @@ def answer_web_search(question: str) -> str:
     WebSearch allowlist (a read-only search, nothing destructive).
     """
     return call_claude(
-        question, WEB_SEARCH_SYSTEM_PROMPT, MODEL, tools="WebSearch", permission_mode="bypassPermissions"
+        _build_prompt(question, company), WEB_SEARCH_SYSTEM_PROMPT, MODEL,
+        tools="WebSearch", permission_mode="bypassPermissions",
     )

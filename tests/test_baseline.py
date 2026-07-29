@@ -39,9 +39,17 @@ def test_answer_web_search_passes_websearch_tool():
         assert args[args.index("--tools") + 1] == "WebSearch"
 
 
+def test_answer_naive_prefixes_company_when_given():
+    with patch("subprocess.run", return_value=_fake_result("answer")) as mock_run:
+        reset_recorded_metrics()
+        answer_naive("What was revenue?", company="Acme Corp")
+        prompt = mock_run.call_args[0][0][mock_run.call_args[0][0].index("-p") + 1]
+        assert "Acme Corp" in prompt
+
+
 def test_run_baseline_eval_scores_and_records_metrics():
     questions = [{
-        "financebench_id": "q1", "question_type": "domain-relevant",
+        "financebench_id": "q1", "question_type": "domain-relevant", "company": "Acme Corp",
         "question": "What was FY2020 revenue?", "answer": "$100 million",
     }]
     with patch("subprocess.run", return_value=_fake_result("Revenue was $100 million.")):
@@ -54,7 +62,7 @@ def test_run_baseline_eval_scores_and_records_metrics():
 
 def test_run_baseline_eval_records_error_on_failure():
     questions = [{
-        "financebench_id": "q1", "question_type": "domain-relevant",
+        "financebench_id": "q1", "question_type": "domain-relevant", "company": "Acme Corp",
         "question": "What was FY2020 revenue?", "answer": "$100 million",
     }]
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, ["claude"], stderr="boom")):
